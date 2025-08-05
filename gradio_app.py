@@ -2,7 +2,6 @@ import gradio as gr
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go
 import json
 import time
 from datetime import datetime
@@ -11,7 +10,7 @@ import torch
 from sklearn.metrics.pairwise import cosine_similarity
 import umap.umap_ as umap
 import psutil
-import io
+
 
 # =============================================================================
 # DATASETS MODULE
@@ -443,15 +442,15 @@ class EmbeddingGenerator:
         if self.model is None:
             try:
                 self.model = SentenceTransformer(self.model_name, device=self.device)
-                return f"✅ Model loaded successfully on {self.device}"
+                return f"Model loaded successfully on {self.device}"
             except Exception as e:
                 # Fallback to a smaller model if gte-modernbert-base fails
                 try:
                     self.model_name = "all-MiniLM-L6-v2"
                     self.model = SentenceTransformer(self.model_name, device=self.device)
-                    return f"⚠️ Fallback to {self.model_name}"
+                    return f"Fallback to {self.model_name}"
                 except Exception as fallback_error:
-                    return f"❌ Both models failed: {str(fallback_error)}"
+                    return f"Both models failed: {str(fallback_error)}"
 
     def generate_embeddings(self, texts, batch_size=32, progress_callback=None):
         """Generate embeddings for a list of texts"""
@@ -655,6 +654,8 @@ umap_embeddings = None
 embedding_generator = EmbeddingGenerator()
 similarity_searcher = SimilaritySearcher()
 
+document_intelligence = None
+
 # =============================================================================
 # MAIN APPLICATION FUNCTIONS
 # =============================================================================
@@ -791,7 +792,7 @@ def generate_embeddings_func():
         generation_time = time.time() - start_time
 
         return f"""
-✅ Embeddings generated successfully!
+Embeddings generated successfully!
 
 **Model:** {embedding_generator.model_name}
 **Device:** {embedding_generator.device}
@@ -849,7 +850,7 @@ def search_similar_texts(query_text, similarity_threshold, max_results):
         results_display = results_df[display_columns].round({'similarity_score': 3})
 
         summary = f"""
-🔍 Search Results
+Search Results
 
 **Query:** {query_text}
 **Found:** {len(similar_indices)} similar texts
@@ -981,6 +982,140 @@ def get_performance_metrics():
     except Exception as e:
         return f"Error getting metrics: {str(e)}"
 
+def analyze_corpus_intelligence(documents_text):
+    """Analyze document corpus with intelligence features"""
+    global embedding_generator
+
+    if not documents_text.strip():
+        return "Please provide documents to analyze."
+
+    # Split documents by double newline or numbered format
+    if '\n\n' in documents_text:
+        documents = [doc.strip() for doc in documents_text.split('\n\n') if doc.strip()]
+    else:
+        documents = [documents_text]  # Treat as single document
+
+    # Create DocumentIntelligence instance
+    from document_intelligence import DocumentIntelligence
+    di = DocumentIntelligence(embedding_generator)
+
+    try:
+        analysis = di.analyze_document_corpus(documents)
+
+        # Format results for display
+        result = f"""
+# Document Intelligence Analysis
+
+## Corpus Statistics
+- **Documents**: {analysis['corpus_stats']['document_count']}
+- **Total Words**: {analysis['corpus_stats']['total_words']:,}
+- **Vocabulary Size**: {analysis['corpus_stats']['vocabulary_size']:,}
+- **Avg Words/Doc**: {analysis['corpus_stats']['average_words_per_document']:.1f}
+
+## Key Phrases
+"""
+
+        for i, phrase in enumerate(analysis['key_phrases'][:10], 1):
+            result += f"{i}. **{phrase['phrase']}** (score: {phrase['score']:.2f})\n"
+
+        return result
+
+    except Exception as e:
+        return f"Error analyzing corpus: {str(e)}"
+
+def summarize_document_interface(document_text, summary_length):
+    """Summarize document interface"""
+    if not document_text.strip():
+        return "Please provide a document to summarize."
+
+    from document_intelligence import DocumentIntelligence
+    di = DocumentIntelligence()
+
+    try:
+        summary = di.summarize_document(document_text, summary_length)
+
+        return f"""
+# Document Summary
+
+**Original Length**: {len(document_text)} characters
+**Summary Length**: {len(summary['summary'])} characters
+**Compression Ratio**: {summary['compression_ratio']:.2f}
+
+## Summary:
+{summary['summary']}
+"""
+    except Exception as e:
+        return f"Error summarizing document: {str(e)}"
+
+def answer_question_interface(question, context_text):
+    """Question answering interface"""
+    if not question.strip() or not context_text.strip():
+        return "Please provide both a question and context documents."
+
+    # Split context into documents
+    if '\n\n' in context_text:
+        documents = [doc.strip() for doc in context_text.split('\n\n') if doc.strip()]
+    else:
+        documents = [context_text]
+
+    from document_intelligence import DocumentIntelligence
+    di = DocumentIntelligence()
+
+    try:
+        di.analyze_document_corpus(documents)  # Initialize the corpus
+        answer = di.answer_question(question, documents)
+
+        return f"""
+# ❓ Question Answering
+
+**Question**: {question}
+**Answer**: {answer['answer']}
+**Confidence**: {answer['confidence']:.2f}
+**Question Type**: {answer['question_type']}
+"""
+    except Exception as e:
+        return f"Error answering question: {str(e)}"
+
+def get_document_insights_interface(document_text):
+    """Get comprehensive document insights"""
+    if not document_text.strip():
+        return "Please provide a document to analyze."
+
+    from document_intelligence import DocumentIntelligence
+    di = DocumentIntelligence()
+
+    try:
+        insights = di.generate_document_insights(document_text)
+
+        result = f"""
+# Document Insights
+
+## Basic Statistics
+- **Words**: {insights['basic_stats']['word_count']}
+- **Sentences**: {insights['basic_stats']['sentence_count']}
+- **Characters**: {insights['basic_stats']['character_count']}
+
+## Key Phrases
+"""
+
+        for i, phrase in enumerate(insights['key_phrases'][:8], 1):
+            result += f"{i}. **{phrase['phrase']}** (score: {phrase['score']:.2f})\n"
+
+        result += f"""
+## Summary
+{insights['summary']['summary']}
+
+## Analysis Scores
+- **Readability**: {insights['readability']:.1f}
+- **Complexity**: {insights['complexity_score']:.1f}
+- **Sentiment**: {insights['sentiment']['sentiment']} ({insights['sentiment']['confidence']:.2f})
+"""
+
+        return result
+
+    except Exception as e:
+        return f"Error analyzing document: {str(e)}"
+
 # =============================================================================
 # GRADIO INTERFACE
 # =============================================================================
@@ -988,10 +1123,10 @@ def get_performance_metrics():
 def create_gradio_app():
     """Create the main Gradio application"""
 
-    with gr.Blocks(title="🔍 Text Similarity Explorer", theme=gr.themes.Soft()) as app:
+    with gr.Blocks(title="Text Similarity Explorer", theme=gr.themes.Soft()) as app:
 
         gr.Markdown("""
-        # 🔍 Text Similarity Explorer
+        # Text Similarity Explorer
         ### A Visual Embeddings Playground using GTE-ModernBERT-Base
         
         This tool helps you explore text similarities using state-of-the-art embedding models and interactive visualizations.
@@ -1002,7 +1137,7 @@ def create_gradio_app():
             # =================================================================
             # TAB 1: DATASET MANAGEMENT
             # =================================================================
-            with gr.Tab("📊 Dataset Management"):
+            with gr.Tab("Dataset Management"):
                 gr.Markdown("## Load and Manage Your Dataset")
 
                 with gr.Row():
@@ -1052,7 +1187,7 @@ def create_gradio_app():
                 # Generate embeddings section
                 gr.Markdown("## Generate Embeddings")
                 with gr.Row():
-                    generate_btn = gr.Button("🚀 Generate Embeddings", variant="primary", size="lg")
+                    generate_btn = gr.Button("Generate Embeddings", variant="primary", size="lg")
                     embedding_status = gr.Textbox(
                         label="Embedding Status",
                         lines=8,
@@ -1114,7 +1249,7 @@ def create_gradio_app():
             # =================================================================
             # TAB 2: SIMILARITY SEARCH
             # =================================================================
-            with gr.Tab("🔍 Similarity Search"):
+            with gr.Tab("Similarity Search"):
                 gr.Markdown("## Semantic Similarity Search")
 
                 with gr.Row():
@@ -1141,7 +1276,7 @@ def create_gradio_app():
                                 label="Max Results"
                             )
 
-                        search_btn = gr.Button("🔍 Search Similar Texts", variant="primary")
+                        search_btn = gr.Button("Search Similar Texts", variant="primary")
 
                     with gr.Column(scale=2):
                         search_results = gr.Textbox(
@@ -1163,7 +1298,7 @@ def create_gradio_app():
             # =================================================================
             # TAB 3: VISUALIZATION
             # =================================================================
-            with gr.Tab("📊 Visualization"):
+            with gr.Tab("Visualization"):
                 gr.Markdown("## 2D Embedding Visualization")
 
                 with gr.Row():
@@ -1197,7 +1332,7 @@ def create_gradio_app():
                             label="UMAP 2D Projection"
                         )
 
-                gr.Markdown("💡 **Tip**: Points that are close together in the visualization represent texts with similar semantic meaning.")
+                gr.Markdown("**Tip**: Points that are close together in the visualization represent texts with similar semantic meaning.")
 
                 update_viz_btn.click(
                     create_visualization,
@@ -1208,12 +1343,12 @@ def create_gradio_app():
             # =================================================================
             # TAB 4: DATASET OVERVIEW & METRICS
             # =================================================================
-            with gr.Tab("📋 Overview & Metrics"):
+            with gr.Tab("Overview & Metrics"):
                 gr.Markdown("## Dataset Overview and Performance Metrics")
 
                 with gr.Row():
-                    refresh_overview_btn = gr.Button("🔄 Refresh Overview", variant="primary")
-                    refresh_metrics_btn = gr.Button("📊 Refresh Metrics", variant="primary")
+                    refresh_overview_btn = gr.Button("Refresh Overview", variant="primary")
+                    refresh_metrics_btn = gr.Button("Refresh Metrics", variant="primary")
 
                 with gr.Row():
                     with gr.Column():
@@ -1239,9 +1374,117 @@ def create_gradio_app():
                 )
 
             # =================================================================
-            # TAB 5: EXPORT
+            # TAB 5: DOCUMENT INTELLIGENCE
             # =================================================================
-            with gr.Tab("📤 Export"):
+            with gr.Tab("Document Intelligence"):
+                gr.Markdown("## Advanced Document Intelligence")
+
+                with gr.Tabs():
+                    # Sub-tab 1: Corpus Analysis
+                    with gr.Tab("Corpus Analysis"):
+                        gr.Markdown("### Analyze multiple documents for insights")
+
+                        corpus_input = gr.Textbox(
+                            label="Documents (separate with double newlines)",
+                            lines=10,
+                            placeholder="Document 1 text here...\n\nDocument 2 text here...\n\nDocument 3 text here..."
+                        )
+
+                        analyze_corpus_btn = gr.Button("Analyze Corpus", variant="primary")
+                        corpus_results = gr.Markdown(label="Analysis Results")
+
+                        analyze_corpus_btn.click(
+                            analyze_corpus_intelligence,
+                            inputs=[corpus_input],
+                            outputs=[corpus_results]
+                        )
+
+                    # Sub-tab 2: Document Summarization
+                    with gr.Tab("Summarization"):
+                        gr.Markdown("### Generate intelligent summaries")
+
+                        with gr.Row():
+                            with gr.Column():
+                                summary_input = gr.Textbox(
+                                    label="Document to Summarize",
+                                    lines=8,
+                                    placeholder="Enter the document text you want to summarize..."
+                                )
+
+                                summary_length = gr.Slider(
+                                    minimum=1,
+                                    maximum=10,
+                                    value=3,
+                                    step=1,
+                                    label="Summary Length (sentences)"
+                                )
+
+                                summarize_btn = gr.Button("Generate Summary", variant="primary")
+
+                            with gr.Column():
+                                summary_results = gr.Markdown(label="Summary Results")
+
+                        summarize_btn.click(
+                            summarize_document_interface,
+                            inputs=[summary_input, summary_length],
+                            outputs=[summary_results]
+                        )
+
+                    # Sub-tab 3: Question Answering
+                    with gr.Tab("Q&A System"):
+                        gr.Markdown("### Ask questions about your documents")
+
+                        with gr.Row():
+                            with gr.Column():
+                                qa_question = gr.Textbox(
+                                    label="Your Question",
+                                    placeholder="What is this document about?"
+                                )
+
+                                qa_context = gr.Textbox(
+                                    label="Context Documents",
+                                    lines=8,
+                                    placeholder="Paste your documents here for the AI to search through..."
+                                )
+
+                                qa_btn = gr.Button("Get Answer", variant="primary")
+
+                            with gr.Column():
+                                qa_results = gr.Markdown(label="Answer & Sources")
+
+                        qa_btn.click(
+                            answer_question_interface,
+                            inputs=[qa_question, qa_context],
+                            outputs=[qa_results]
+                        )
+
+                    # Sub-tab 4: Document Insights
+                    with gr.Tab("Deep Insights"):
+                        gr.Markdown("### Comprehensive document analysis")
+
+                        with gr.Row():
+                            with gr.Column():
+                                insights_input = gr.Textbox(
+                                    label="Document for Analysis",
+                                    lines=10,
+                                    placeholder="Enter a document for comprehensive analysis..."
+                                )
+
+                                insights_btn = gr.Button("Analyze Document", variant="primary")
+
+                            with gr.Column():
+                                insights_results = gr.Markdown(label="Document Insights")
+
+                        insights_btn.click(
+                            get_document_insights_interface,
+                            inputs=[insights_input],
+                            outputs=[insights_results]
+                        )
+
+            # =================================================================
+            # TAB 6: EXPORT
+            # =================================================================
+            with gr.Tab("Export"):
                 gr.Markdown("## Export Results")
 
                 with gr.Row():
@@ -1256,7 +1499,7 @@ def create_gradio_app():
                             value=True
                         )
 
-                        export_btn = gr.Button("📥 Export to CSV", variant="primary")
+                        export_btn = gr.Button("Export to CSV", variant="primary")
 
                         export_file = gr.File(
                             label="Download File",
