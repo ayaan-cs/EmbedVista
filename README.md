@@ -192,13 +192,13 @@ python -m pytest tests/
 
 ---
 
-## 📜 **License**
+## **License**
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 🙏 **Acknowledgments**
+## **Acknowledgments**
 
 ### **Built With**
 - **[Sentence Transformers](https://www.sbert.net/)** - For state-of-the-art text embeddings
