@@ -1,4 +1,4 @@
-# 🔍 Text Similarity Explorer
+# Text Similarity Explorer
 
 > **Advanced Semantic Analysis Platform** powered by Modern Transformer Models
 
@@ -100,7 +100,7 @@ datasets~=4.0.0
 
 ---
 
-## 🎮 **Usage**
+##  **Usage**
 
 ### **Quick Start**
 1. **Launch the application**: `python gradio_app.py`
